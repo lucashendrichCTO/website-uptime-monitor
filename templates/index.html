@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Website Uptime Monitor</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             background-color: #1a1a1a;
@@ -89,6 +90,9 @@
                     <p class="text-gray-300">Frequency: <span id="resultFrequency" class="font-medium"></span> ms</p>
                     <p class="text-gray-300">Timestamp: <span id="timestamp" class="font-medium"></span></p>
                 </div>
+                <div class="mt-6">
+                    <canvas id="monitoringChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -100,6 +104,68 @@
         const progressBar = document.getElementById('progressBar');
         let startTime;
         let currentUrl;
+        let monitoringChart = null;
+
+        // Initialize chart
+        function initChart() {
+            const ctx = document.getElementById('monitoringChart').getContext('2d');
+            monitoringChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Website Status',
+                        data: [],
+                        borderColor: '#60a5fa',
+                        backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#60a5fa',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e5e5e5'
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 1,
+                            ticks: {
+                                color: '#e5e5e5',
+                                callback: function(value) {
+                                    return value === 1 ? 'Up' : value === 0 ? 'Down' : '';
+                                }
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#e5e5e5'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update chart with new data
+        function updateChart(checkResults) {
+            const labels = checkResults.map(result => result.timestamp);
+            const data = checkResults.map(result => result.success ? 1 : 0);
+            
+            monitoringChart.data.labels = labels;
+            monitoringChart.data.datasets[0].data = data;
+            monitoringChart.update();
+        }
+
+        // Initialize chart when page loads
+        initChart();
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -163,6 +229,11 @@
                     document.getElementById('resultDuration').textContent = data.duration;
                     document.getElementById('resultFrequency').textContent = data.frequency;
                     document.getElementById('timestamp').textContent = data.timestamp;
+                    
+                    // Fetch and display detailed results
+                    const detailedResponse = await fetch(`/detailed_results?url=${encodeURIComponent(currentUrl)}`);
+                    const detailedData = await detailedResponse.json();
+                    updateChart(detailedData);
                     
                     resultsDiv.classList.remove('hidden');
                 } else {

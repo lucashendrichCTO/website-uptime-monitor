@@ -9,6 +9,7 @@ app = Flask(__name__)
 
 # Store monitoring results
 monitoring_results = {}
+detailed_results = {}  # Store detailed check results for charts
 
 def check_website(url, duration, frequency, result_queue):
     """Monitor website for specified duration and calculate uptime"""
@@ -16,15 +17,25 @@ def check_website(url, duration, frequency, result_queue):
     end_time = start_time + (duration * 60)  # Convert minutes to seconds
     successful_checks = 0
     total_checks = 0
+    check_results = []  # Store individual check results
     
     while time.time() < end_time:
+        check_time = time.time()
         try:
             response = requests.get(url, timeout=0.1)  # 100ms timeout
-            if response.status_code == 200:
+            is_success = response.status_code == 200
+            if is_success:
                 successful_checks += 1
             total_checks += 1
         except:
+            is_success = False
             total_checks += 1
+        
+        # Store check result with timestamp
+        check_results.append({
+            'timestamp': datetime.fromtimestamp(check_time).strftime('%H:%M:%S'),
+            'success': is_success
+        })
         
         time.sleep(frequency / 1000)  # Convert milliseconds to seconds
     
@@ -39,8 +50,9 @@ def check_website(url, duration, frequency, result_queue):
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
     
-    # Store the result
+    # Store the results
     monitoring_results[url] = result
+    detailed_results[url] = check_results
     result_queue.put(result)
 
 @app.route('/')
@@ -84,6 +96,16 @@ def get_results():
             url = 'http://' + url
         return jsonify(monitoring_results.get(url, {}))
     return jsonify(monitoring_results)
+
+@app.route('/detailed_results')
+def get_detailed_results():
+    url = request.args.get('url')
+    if url:
+        # Add http:// if not present
+        if not url.startswith(('http://', 'https://')):
+            url = 'http://' + url
+        return jsonify(detailed_results.get(url, []))
+    return jsonify(detailed_results)
 
 if __name__ == '__main__':
     app.run(debug=True) 
